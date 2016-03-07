@@ -298,16 +298,6 @@ static int r82xx_read_cache_reg(struct r82xx_priv *priv, int reg)
 
 static int r82xx_write_reg(struct r82xx_priv *priv, uint8_t reg, uint8_t val)
 {
-	if (priv->reg_cache && r82xx_read_cache_reg(priv, reg) == val)
-		return 0;
-	if (priv->reg_batch) {
-		shadow_store(priv, reg, &val, 1);
-		if (reg < priv->reg_low)
-			priv->reg_low = reg;
-		if (reg > priv->reg_high)
-			priv->reg_high = reg;
-		return 0;
-	}
 	return r82xx_write(priv, reg, &val, 1);
 }
 
@@ -453,172 +443,96 @@ static int r82xx_set_mux(struct r82xx_priv *priv, uint32_t freq)
 
 static int r82xx_set_pll(struct r82xx_priv *priv, uint32_t freq)
 {
-	int rc, i;
-	unsigned sleep_time = 10000;
-	uint64_t vco_freq;
-	uint64_t vco_div;
-	uint32_t vco_min = 1770000; /* kHz */
-	uint32_t vco_max = vco_min * 2; /* kHz */
-	uint32_t freq_khz, pll_ref;
-	uint32_t sdm = 0;
-	uint8_t mix_div = 2;
-	uint8_t div_buf = 0;
-	uint8_t div_num = 0;
-	uint8_t vco_power_ref = 2;
-	uint8_t refdiv2 = 0;
-	uint8_t ni, si, nint, vco_fine_tune, val;
-	uint8_t data[5];
+  const uint32_t vco_min = 1770000000;
+  const uint32_t vco_max = 3900000000;
+  uint32_t pll_ref = priv->cfg->xtal;
+  uint32_t pll_ref_2x = (pll_ref * 2);
 
-	r82xx_write_batch_init(priv);
+  int rc;
+  uint32_t vco_exact;
+  uint32_t vco_frac;
+  uint32_t con_frac;
+  uint32_t div_num;
+  uint32_t n_sdm;
+  uint16_t sdm;
+  uint8_t ni;
+  uint8_t si;
+  uint8_t nint;
 
-	/* Frequency in kHz */
-	freq_khz = (freq + 500) / 1000;
-	pll_ref = priv->cfg->xtal;
+  /* Calculate divider */
+  for (div_num = 0; div_num < 5; div_num++)
+  {
+    vco_exact = freq << (div_num + 1);
+    if (vco_exact >= vco_min && vco_exact <= vco_max)
+    {
+      break;
+    }
+  }
 
-	rc = r82xx_write_reg_mask(priv, 0x10, refdiv2, 0x10);
-	if (rc < 0)
-		return rc;
+  vco_exact = freq << (div_num + 1);
+  nint = (uint8_t) ((vco_exact + (pll_ref >> 16)) / pll_ref_2x);
+  vco_frac = vco_exact - pll_ref_2x * nint;
 
-	/* set pll autotune = 128kHz */
-	rc = r82xx_write_reg_mask(priv, 0x1a, 0x00, 0x0c);
-	if (rc < 0)
-		return rc;
+  nint -= 13;
+  ni = (nint >> 2);
+  si = nint - (ni << 2);
 
-	/* set VCO current = 100 */
-	rc = r82xx_write_reg_mask(priv, 0x12, 0x80, 0xe0);
-	if (rc < 0)
-		return rc;
+  /* Set the phase splitter */
+  rc = r82xx_write_reg_mask(priv, 0x10, (uint8_t) (div_num << 5), 0xe0);
+  if(rc < 0)
+    return rc;
 
-	/* Calculate divider */
-	if(freq_khz < vco_min/64) vco_min /= 2;
-	if(freq_khz >= vco_max/2) vco_max *= 2;
-	while (mix_div <= 64) {
-		if (((freq_khz * mix_div) >= vco_min) &&
-		   ((freq_khz * mix_div) < vco_max)) {
-			div_buf = mix_div;
-			while (div_buf > 2) {
-				div_buf = div_buf >> 1;
-				div_num++;
-			}
-			break;
-		}
-		mix_div = mix_div << 1;
-	}
+  /* Set the rough VCO frequency */
+  rc = r82xx_write_reg(priv, 0x14, (uint8_t) (ni + (si << 6)));
+  if(rc < 0)
+    return rc;
 
-	if (mix_div > 64) {
-		fprintf(stderr, "[R82XX] No valid PLL values for %u Hz!\n", freq);
-		return -1;
-	}
+  if (vco_frac == 0)
+  {
+    /* Disable frac pll */
+    rc = r82xx_write_reg_mask(priv, 0x12, 0x08, 0x08);
+    if(rc < 0)
+      return rc;
+  }
+  else
+  {
+    vco_frac += pll_ref >> 16;
+    sdm = 0;
+    for(n_sdm = 0; n_sdm < 16; n_sdm++)
+    {
+        con_frac = pll_ref >> n_sdm;
+        if (vco_frac >= con_frac)
+        {
+            sdm |= (uint16_t) (0x8000 >> n_sdm);
+            vco_frac -= con_frac;
+            if (vco_frac == 0)
+                break;
+        }
+    }
 
-	if (priv->cfg->rafael_chip == CHIP_R828D)
-		vco_power_ref = 1;
+/*
+    actual_freq = (((nint << 16) + sdm) * (uint64_t) pll_ref_2x) >> (div_num + 1 + 16);
+    delta = freq - actual_freq
+    if (actual_freq != freq)
+    {
+      fprintf(stderr,"Tunning delta: %d Hz", delta);
+    }
+*/
+    rc = r82xx_write_reg(priv, 0x15, (uint8_t)(sdm & 0xff));
+    if (rc < 0)
+      return rc;
 
-	/*
-	rc = r82xx_read(priv, 0x00, data, sizeof(data));
-	if (rc < 0)
-		return rc;
-	vco_fine_tune = (data[4] & 0x30) >> 4;
-	*/
-	vco_fine_tune = 2;
+    rc = r82xx_write_reg(priv, 0x16, (uint8_t)(sdm >> 8));
+    if (rc < 0)
+      return rc;
 
-	if (vco_fine_tune > vco_power_ref)
-		div_num = div_num - 1;
-	else if (vco_fine_tune < vco_power_ref)
-		div_num = div_num + 1;
+    /* Enable frac pll */
+    rc = r82xx_write_reg_mask(priv, 0x12, 0x00, 0x08);
+    if (rc < 0)
+      return rc;
+  }
+  return rc;
 
-	rc = r82xx_write_reg_mask(priv, 0x10, div_num << 5, 0xe0);
-	if (rc < 0)
-		return rc;
-
-	vco_freq = (uint64_t)freq * (uint64_t)mix_div;
-
-	/*
-	 * We want to approximate:
-	 *  vco_freq / (2 * pll_ref)
-	 * in the form:
-	 *  nint + sdm/65536
-	 * where nint,sdm are integers and 0 < nint, 0 <= sdm < 65536
-	 * Scaling to fixed point and rounding:
-	 *  vco_div = 65536*(nint + sdm/65536) = int( 0.5 + 65536 * vco_freq / (2 * pll_ref) )
-	 *  vco_div = 65536*nint + sdm         = int( (pll_ref + 65536 * vco_freq) / (2 * pll_ref) )
-	 */
-
-	vco_div = (pll_ref + 65536 * vco_freq) / (2 * pll_ref);
-	nint = (uint32_t) (vco_div / 65536);
-	sdm = (uint32_t) (vco_div % 65536);
-
-	if (nint < 13 ||
-	    (priv->cfg->rafael_chip == CHIP_R828D && nint > 127) ||
-	    (priv->cfg->rafael_chip != CHIP_R828D && nint > 76)) {
-		fprintf(stderr, "[R82XX] No valid PLL values for %u Hz!\n", freq);
-		return -1;
-	}
-
-	ni = (nint - 13) / 4;
-	si = nint - 4 * ni - 13;
-
-	rc = r82xx_write_reg(priv, 0x14, ni + (si << 6));
-	if (rc < 0)
-		return rc;
-
-	/* pw_sdm */
-	if (sdm == 0)
-		val = 0x08;
-	else
-		val = 0x00;
-
-	if (priv->disable_dither)
-		val |= 0x10;
-
-	rc = r82xx_write_reg_mask(priv, 0x12, val, 0x18);
-	if (rc < 0)
-		return rc;
-
-	//fprintf(stderr, "LO: %u kHz, MixDiv: %u, PLLDiv: %u, VCO %u kHz, SDM: %u \n", (uint32_t)(freq/1000), mix_div, nint,  (uint32_t)(vco_freq/1000), sdm);
-
-	rc = r82xx_write_reg(priv, 0x16, sdm >> 8);
-	if (rc < 0)
-		return rc;
-	rc = r82xx_write_reg(priv, 0x15, sdm & 0xff);
-	if (rc < 0)
-		return rc;
-
-	if (priv->reg_batch) {
-		rc = r82xx_write_batch_sync(priv);
-		if (rc < 0) {
-			fprintf(stderr, "[R82XX] Batch error in PLL for %u Hz!\n", freq);
-			return rc;
-		}
-	}
-
-	for (i = 0; i < 2; i++) {
-//		usleep_range(sleep_time, sleep_time + 1000);
-
-		/* Check if PLL has locked */
-		data[2] = 0;
-		rc = r82xx_read(priv, 0x00, data, 3);
-		if (rc < 0)
-			return rc;
-		if (data[2] & 0x40)
-			break;
-		if (i > 0)
-			break;
-
-		/* Didn't lock. Increase VCO current */
-		rc = r82xx_write_reg_mask(priv, 0x12, 0x60, 0xe0);
-		if (rc < 0)
-			return rc;
-	}
-
-	if (!(data[2] & 0x40)) {
-		fprintf(stderr, "[R82XX] PLL not locked!\n");
-		return -1;
-	}
-
-	/* set pll autotune = 8kHz */
-	rc = r82xx_write_reg_mask(priv, 0x1a, 0x08, 0x08);
-
-	return rc;
 }
 
 static int r82xx_sysfreq_sel(struct r82xx_priv *priv, uint32_t freq,
@@ -905,11 +819,68 @@ static int r82xx_init_tv_standard(struct r82xx_priv *priv,
 	return 0;
 }
 
+static int r82xx_set_if_filter_manual(struct r82xx_priv *priv, int cal, int filt, int hpf)
+{
+	int rc;
+	uint8_t filt_q, hp_cor;
+	filt_q = 0x10;
+	
+	if(cal < 0) cal = 0;
+	else if(cal > 15) cal = 15;
+	priv->fil_cal_code = cal;
+	priv->filt = filt;
+	priv->hpf = hpf;
+	
+	if(filt == 0){
+		hp_cor = 0xE0;
+	} else if(filt == 1) {
+		hp_cor = 0xA0;
+	} else if(filt == 2) {
+		hp_cor = 0x80;	
+	} else if(filt == 3) {
+		hp_cor = 0x60;
+	} else if(filt == 4) {
+		hp_cor = 0x20;
+	} else if(filt == 5) {
+		hp_cor = 0x00;
+	}
+	
+	
+	if(hpf == 0)      hp_cor |= 0x00;	/*         5 MHz */
+	else if(hpf == 1) hp_cor |= 0x01;	/*         4 MHz */
+	else if(hpf == 2) hp_cor |= 0x02;	/* -12dB @ 2.25 MHz */
+	else if(hpf == 3) hp_cor |= 0x03;	/*  -8dB @ 2.25 MHz */
+	else if(hpf == 4) hp_cor |= 0x04;	/*  -4dB @ 2.25 MHz */
+	else if(hpf == 5) hp_cor |= 0x05;	/* -12dB @ 1.75 MHz */
+	else if(hpf == 6) hp_cor |= 0x06;	/*  -8dB @ 1.75 MHz */
+	else if(hpf == 7) hp_cor |= 0x07;	/*  -4dB @ 1.75 MHz */
+	else if(hpf == 8) hp_cor |= 0x08;	/* -12dB @ 1.25 MHz */
+	else if(hpf == 9) hp_cor |= 0x09;	/*  -8dB @ 1.25 MHz */
+	else if(hpf == 10) hp_cor |= 0x0A;	/*  -4dB @ 1.25 MHz */
+	else if(hpf == 11) hp_cor |= 0x0B;
+
+	rc = r82xx_write_reg_mask(priv, 0x0a,
+				  filt_q | priv->fil_cal_code, 0x1f);
+				  
+	/* Set BW, Filter_gain, & HP corner */
+	rc = r82xx_write_reg_mask(priv, 0x0b, hp_cor, 0xef);
+	if (rc < 0)
+		return rc;
+				  
+	if (rc < 0)
+		return rc;
+				  
+	return 0;
+}
+
 static int r82xx_set_if_filter(struct r82xx_priv *priv, int hpf, int lpf) {
 	int rc;
 	uint8_t filt_q, hp_cor;
 	int cal;
 	filt_q = 0x10;		/* r10[4]:low q(1'b1) */
+	
+	//lpf = 1000;
+	//hpf = 1400;
 
 	if(lpf <= 2500) {
 				hp_cor = 0xE0; /* 1.7m enable,  +2cap */
@@ -944,7 +915,8 @@ static int r82xx_set_if_filter(struct r82xx_priv *priv, int hpf, int lpf) {
 	else if(hpf >= 1400) hp_cor |= 0x0A;	/*  -4dB @ 1.25 MHz */
 	else                 hp_cor |= 0x0B;
 
-
+	//cal = lpf;
+	//hp_cor = 0x60;//0x60;
 	if(cal < 0) cal = 0;
 	else if(cal > 15) cal = 15;
 	priv->fil_cal_code = cal;
@@ -964,9 +936,16 @@ static int r82xx_set_if_filter(struct r82xx_priv *priv, int hpf, int lpf) {
 	return 0;
 }
 
+int r82xx_set_bw_manual(struct r82xx_priv *priv, int cal, int filt, int hpf) {
+	priv->fil_cal_code = cal;
+	priv->filt = filt;
+	priv->hpf = hpf;
+	return r82xx_set_if_filter_manual(priv, cal, filt, hpf);
+}
+
 int r82xx_set_bw(struct r82xx_priv *priv, uint32_t bw) {
 	priv->bw = bw;
-	return r82xx_set_if_filter(priv, ((int)priv->int_freq - (int)bw/2)/1000, ((int)priv->int_freq + (int)bw/2)/1000);
+	return r82xx_set_if_filter(priv, ((int)priv->int_freq - (int)bw/2)/1000, bw);//r82xx_set_if_filter(priv, ((int)priv->int_freq - (int)bw/2)/1000, ((int)priv->int_freq + (int)bw/2)/1000);
 }
 
 int r82xx_set_if_freq(struct r82xx_priv *priv, uint32_t freq) {
@@ -1280,6 +1259,8 @@ int r82xx_init(struct r82xx_priv *priv)
 	   so there's no need to call r82xx_set_if_filter here */
 
 	rc |= r82xx_sysfreq_sel(priv, 0, TUNER_DIGITAL_TV, SYS_DVBT);
+	
+	rc = r82xx_write_reg_mask(priv, 0x12, 0x00, 0xe0);
 
 	priv->init_done = 1;
 	priv->reg_cache = 1;
