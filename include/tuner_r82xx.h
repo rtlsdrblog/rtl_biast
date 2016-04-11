@@ -82,6 +82,8 @@ struct r82xx_priv {
 	uint16_t			pll;	/* kHz */
 	uint32_t			int_freq;
 	uint8_t				fil_cal_code;
+	uint8_t				filt;
+	uint8_t				hpf;
 	uint8_t				input;
 	int				init_done;
 	int				disable_dither;
@@ -122,5 +124,6 @@ int r82xx_set_nomod(struct r82xx_priv *priv);
 int r82xx_set_dither(struct r82xx_priv *priv, int dither);
 int r82xx_set_bw(struct r82xx_priv *priv, uint32_t bw);
 int r82xx_set_if_freq(struct r82xx_priv *priv, uint32_t freq);
+int r82xx_set_bw_manual(struct r82xx_priv *priv, int cal, int filt, int hpf);
 
 #endif
