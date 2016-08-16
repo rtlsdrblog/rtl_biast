@@ -67,7 +67,6 @@
 #include "convenience/convenience.h"
 
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
-#define MIN(x, y) (((x) < (y)) ? (x) : (y))
 
 #define DEFAULT_BUF_LENGTH		(1 * 16384)
 #define AUTO_GAIN			-100
@@ -105,7 +104,7 @@ struct tuning_state
 	int downsample;
 	int downsample_passes;  /* for the recursive filter */
 	int comp_fir_size;
-	int peak_hold;  /* 1 = peak, 0 = off, -1 = trough */
+	int peak_hold;
 	int linear;
 	int bin_spec;
 	double crop;
@@ -189,7 +188,6 @@ void usage(void)
 		"\t  possible values are 2M to 3.2M\n"
 		"\t[-E enables epoch timestamps (default: off/verbose)]\n"
 		"\t[-P enables peak hold (default: off/averaging)]\n"
-		"\t[-T enables trough hold (default: off/averaging)]\n"
 		"\t[-L enable linear output (default: off/dB)]\n"
 		"\t[-D direct_sampling_mode, 0 (default/off), 1 (I), 2 (Q), 3 (no-mod)]\n"
 		"\t[-O enable offset tuning (default: off)]\n"
@@ -481,12 +479,10 @@ void rms_power(struct tuning_state *ts)
 	err = t * 2 * dc - dc * dc * buf_len;
 	p -= (int64_t)round(err);
 
-	if (ts->peak_hold == 0) {
+	if (!ts->peak_hold) {
 		ts->avg[0] += p;
-	} else if (ts->peak_hold == 1) {
+	} else {
 		ts->avg[0] = MAX(ts->avg[0], p);
-	} else if (ts->peak_hold == -1) {
-		ts->avg[0] = MIN(ts->avg[0], p);
 	}
 	ts->samples += 1;
 }
@@ -689,10 +685,7 @@ void frequency_range(char *arg, struct misc_settings *ms)
 			exit(1);
 		}
 		for (j=0; j<(1<<c.bin_e); j++) {
-			if (ts->peak_hold == -1) {
-				ts->avg[j] = 1e6;
-			} else {
-				ts->avg[j] = 0L;}
+			ts->avg[j] = 0L;
 		}
 		ts->buf8 = (uint8_t*)malloc(buf_len * sizeof(uint8_t));
 		if (!ts->buf8) {
@@ -940,17 +933,13 @@ void scanner(void)
 				fft_buf[offset+j*2+1] = (int16_t)w;
 			}
 			fix_fft(fft_buf+offset, bin_e, ts->sine);
-			if (ts->peak_hold == 0) {
+			if (!ts->peak_hold) {
 				for (j=0; j<bin_len; j++) {
 					ts->avg[j] += real_conj(fft_buf[offset+j*2], fft_buf[offset+j*2+1]);
 				}
-			} else if (ts->peak_hold == 1){
+			} else {
 				for (j=0; j<bin_len; j++) {
 					ts->avg[j] = MAX(real_conj(fft_buf[offset+j*2], fft_buf[offset+j*2+1]), ts->avg[j]);
-				}
-			} else if (ts->peak_hold == -1){
-				for (j=0; j<bin_len; j++) {
-					ts->avg[j] = MIN(real_conj(fft_buf[offset+j*2], fft_buf[offset+j*2+1]), ts->avg[j]);
 				}
 			}
 			ts->samples += ds;
@@ -986,7 +975,7 @@ void csv_dbm(struct tuning_state *ts)
 		}
 		dbm  = (double)ts->avg[i];
 		dbm /= (double)ts->rate;
-		if (ts->peak_hold == 0) {
+		if (!ts->peak_hold) {
 			dbm /= (double)ts->samples;
 		}
 		if (ts->linear) {
@@ -997,10 +986,7 @@ void csv_dbm(struct tuning_state *ts)
 		}
 	}
 	for (i=0; i<len; i++) {
-		if (ts->peak_hold == -1) {
-			ts->avg[i] = 1e6;
-		} else {
-			ts->avg[i] = 0L;}
+		ts->avg[i] = 0L;
 	}
 	ts->samples = 0;
 }
@@ -1048,7 +1034,7 @@ int main(int argc, char **argv)
 	init_misc(&ms);
 	strcpy(dev_label, "DEFAULT");
 
-	while ((opt = getopt(argc, argv, "f:i:s:r:t:d:g:p:e:w:c:F:1EPTLD:Oh")) != -1) {
+	while ((opt = getopt(argc, argv, "f:i:s:r:t:d:g:p:e:w:c:F:1EPLD:Oh")) != -1) {
 		switch (opt) {
 		case 'f': // lower:upper:bin_size
 			if (f_set) {
@@ -1115,9 +1101,6 @@ int main(int argc, char **argv)
 			break;
 		case 'P':
 			ms.peak_hold = 1;
-			break;
-		case 'T':
-			ms.peak_hold = -1;
 			break;
 		case 'L':
 			ms.linear = 1;

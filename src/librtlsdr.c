@@ -229,7 +229,7 @@ int r820t_init(void *dev) {
 	devt->r82xx_c.max_i2c_msg_len = 8;
 	devt->r82xx_c.use_predetect = 0;
 	devt->r82xx_p.cfg = &devt->r82xx_c;
-
+	
 	return r82xx_init(&devt->r82xx_p);
 }
 int r820t_exit(void *dev) {
@@ -244,11 +244,14 @@ int r820t_set_freq(void *dev, uint32_t freq) {
 
 int r820t_set_bw(void *dev, int bw) {
 	rtlsdr_dev_t* devt = (rtlsdr_dev_t*)dev;
+	//return 1;
 	return r82xx_set_bw(&devt->r82xx_p, bw);
 }
 
+
 int r820t_set_if_freq(void *dev, uint32_t freq) {
 	rtlsdr_dev_t* devt = (rtlsdr_dev_t*)dev;
+	//return 1;
 	return r82xx_set_if_freq(&devt->r82xx_p, freq);
 }
 
@@ -567,7 +570,7 @@ void rtlsdr_set_gpio_output(rtlsdr_dev_t *dev, uint8_t gpio)
 	gpio = 1 << gpio;
 
 	r = rtlsdr_read_reg(dev, SYSB, GPD, 1);
-	rtlsdr_write_reg(dev, SYSB, GPO, r & ~gpio, 1);
+	rtlsdr_write_reg(dev, SYSB, GPD, r & ~gpio, 1); // CARL: Changed from rtlsdr_write_reg(dev, SYSB, GPO, r & ~gpio, 1); must be a bug in the old code
 	r = rtlsdr_read_reg(dev, SYSB, GPOE, 1);
 	rtlsdr_write_reg(dev, SYSB, GPOE, r | gpio, 1);
 }
@@ -736,7 +739,7 @@ int rtlsdr_set_sample_freq_correction(rtlsdr_dev_t *dev, int ppm)
 	tmp = (offs >> 8) & 0x3f;
 	r |= rtlsdr_demod_write_reg(dev, 1, 0x3e, tmp, 1);
 
-	return r;
+	return 0;
 }
 
 int rtlsdr_set_xtal_freq(rtlsdr_dev_t *dev, uint32_t rtl_freq, uint32_t tuner_freq)
@@ -1162,6 +1165,17 @@ int rtlsdr_set_agc_mode(rtlsdr_dev_t *dev, int on)
 	rtlsdr_set_i2c_repeater(dev, 0);
 
 	return rtlsdr_demod_write_reg(dev, 0, 0x19, on ? 0x25 : 0x05, 1);
+}
+
+int rtlsdr_set_bias_tee(rtlsdr_dev_t *dev, int on)
+{
+	if (!dev)
+		return -1;
+
+	rtlsdr_set_gpio_output(dev, 0);
+	rtlsdr_set_gpio_bit(dev, 0, on);
+
+	return 1;
 }
 
 int rtlsdr_set_direct_sampling(rtlsdr_dev_t *dev, int on)
@@ -1608,6 +1622,10 @@ int rtlsdr_open(rtlsdr_dev_t **out_dev, uint32_t index)
 	}
 
 found:
+	// CARL: Set GPIO output pin 0
+	//rtlsdr_set_gpio_output(dev, 0);
+	//rtlsdr_set_gpio_bit(dev, 0, 1);
+
 	/* use the rtl clock value by default */
 	dev->tun_xtal = dev->rtl_xtal;
 	dev->tuner = &tuners[dev->tuner_type];
@@ -1660,6 +1678,50 @@ err:
 }
 
 int rtlsdr_close(rtlsdr_dev_t *dev)
+{
+	if (!dev)
+		return -1;
+	rtlsdr_set_i2c_repeater(dev, 0);
+
+	// Turn off the bias tee
+	//rtlsdr_set_gpio_output(dev, 0);
+	rtlsdr_set_gpio_bit(dev, 0, 0);
+
+	if(!dev->dev_lost) {
+		/* block until all async operations have been completed (if any) */
+		while (RTLSDR_INACTIVE != dev->async_status) {
+#ifdef _WIN32
+			Sleep(1);
+#else
+			usleep(1000);
+#endif
+		}
+
+		rtlsdr_deinit_baseband(dev);
+	}
+
+	libusb_release_interface(dev->devh, 0);
+
+#ifdef DETACH_KERNEL_DRIVER
+	if (dev->driver_active) {
+		if (!libusb_attach_kernel_driver(dev->devh, 0))
+			fprintf(stderr, "Reattached kernel driver\n");
+		else
+			fprintf(stderr, "Reattaching kernel driver failed!\n");
+	}
+#endif
+
+	libusb_close(dev->devh);
+
+	libusb_exit(dev->ctx);
+
+	free(dev);
+
+	return 0;
+}
+
+
+int rtlsdr_close_bt(rtlsdr_dev_t *dev)
 {
 	if (!dev)
 		return -1;
