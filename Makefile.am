@@ -1,49 +1,36 @@
-AUTOMAKE_OPTIONS = foreign dist-bzip2 1.6
-ACLOCAL_AMFLAGS = -I m4
+# This is _NOT_ the library release version, it's an API version.
+# Please read Chapter 6 "Library interface versions" of the libtool documentation before making any modification
+LIBVERSION=0:5:0
 
+AUTOMAKE_OPTIONS = subdir-objects
 INCLUDES = $(all_includes) -I$(top_srcdir)/include
-SUBDIRS = include src
+noinst_HEADERS = convenience/convenience.h
+AM_CFLAGS = ${CFLAGS} -fPIC ${SYMBOL_VISIBILITY}
 
-pkgconfigdir = $(libdir)/pkgconfig
-pkgconfig_DATA = librtlsdr.pc
+lib_LTLIBRARIES = librtlsdr.la
 
-BUILT_SOURCES = $(top_srcdir)/.version
-$(top_srcdir)/.version:
-	echo $(VERSION) > $@-t && mv $@-t $@
-dist-hook:
-	echo $(VERSION) > $(distdir)/.tarball-version
+librtlsdr_la_SOURCES = librtlsdr.c tuner_e4k.c tuner_fc0012.c tuner_fc0013.c tuner_fc2580.c tuner_r82xx.c
+librtlsdr_la_LDFLAGS = -version-info $(LIBVERSION)
 
-install-udev-rules:
-	$(INSTALL_DATA) rtl-sdr.rules /etc/udev/rules.d
+bin_PROGRAMS         = rtl_sdr rtl_tcp rtl_test rtl_fm rtl_eeprom rtl_adsb rtl_power
 
-uninstall-udev-rules:
-	rm -rf /etc/udev/rules.d/rtl-sdr.rules
+rtl_sdr_SOURCES      = rtl_sdr.c convenience/convenience.c
+rtl_sdr_LDADD        = librtlsdr.la
 
-EXTRA_DIST = git-version-gen
+rtl_tcp_SOURCES      = rtl_tcp.c convenience/convenience.c
+rtl_tcp_LDADD        = librtlsdr.la
 
-if HAVE_DOXYGEN
+rtl_test_SOURCES      = rtl_test.c convenience/convenience.c
+rtl_test_LDADD        = librtlsdr.la $(LIBM)
 
-pkgdocdir=$(docdir)/$(PACKAGE)-$(VERSION)
-doc_htmldir=$(pkgdocdir)/html
+rtl_fm_SOURCES      = rtl_fm.c convenience/convenience.c
+rtl_fm_LDADD        = librtlsdr.la $(LIBM)
 
-doc_html_DATA = $(top_builddir)/doc/html.tar
+rtl_eeprom_SOURCES      = rtl_eeprom.c convenience/convenience.c
+rtl_eeprom_LDADD        = librtlsdr.la $(LIBM)
 
-$(doc_html_DATA): $(top_builddir)/doc/html/index.html
-	cd $(top_builddir)/doc && tar cf html.tar html
+rtl_adsb_SOURCES      = rtl_adsb.c convenience/convenience.c
+rtl_adsb_LDADD        = librtlsdr.la $(LIBM)
 
-$(top_builddir)/doc/html/index.html: $(SOURCES) Doxyfile
-	@rm -rf doc
-	mkdir -p doc
-	$(DOXYGEN) Doxyfile
-
-install-data-hook:
-	cd $(DESTDIR)$(doc_htmldir) && tar xf html.tar --strip-components 1 && rm -f html.tar
-
-uninstall-hook:
-	cd $(DESTDIR) && rm -rf $(doc_htmldir)
-
-DX_CLEAN = doc/{html,latex}/* doc/html.tar
-
-endif
-
-MOSTLYCLEANFILES = $(DX_CLEAN)
+rtl_power_SOURCES     = rtl_power.c convenience/convenience.c
+rtl_power_LDADD       = librtlsdr.la $(LIBM)
