@@ -26,7 +26,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
-#include <windows.h>
+#include <unistd.h>
 
 #include "rtlsdr_i2c.h"
 #include "tuner_r82xx.h"
@@ -1368,7 +1368,7 @@ int r820t_calibrate(struct r82xx_priv *priv)
     if (rc < 0)
       return rc;
 
-	Sleep(1000); //sleep 1s
+    sleep(1); //sleep 1s
 
     /* Stop Trigger */
     rc = r82xx_write_reg_mask(priv, 0x0b, 0x00, 0x10);

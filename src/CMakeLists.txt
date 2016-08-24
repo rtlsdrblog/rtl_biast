@@ -68,10 +68,10 @@ add_executable(rtl_sdr rtl_sdr.c)
 add_executable(rtl_tcp rtl_tcp.c)
 add_executable(rtl_test rtl_test.c)
 add_executable(rtl_fm rtl_fm.c)
-add_executable(rtl_eeprom rtl_eeprom.c)
+add_executable(rtl_biast rtl_biast.c)
 add_executable(rtl_adsb rtl_adsb.c)
 add_executable(rtl_power rtl_power.c)
-set(INSTALL_TARGETS rtlsdr_shared rtlsdr_static rtl_sdr rtl_tcp rtl_test rtl_fm rtl_eeprom rtl_adsb rtl_power)
+set(INSTALL_TARGETS rtlsdr_shared rtlsdr_static rtl_sdr rtl_tcp rtl_test rtl_fm rtl_biast rtl_adsb rtl_power)
 
 target_link_libraries(rtl_sdr convenience_static rtlsdr_shared
     ${LIBUSB_LIBRARIES}
@@ -89,7 +89,7 @@ target_link_libraries(rtl_fm convenience_static rtlsdr_shared
     ${LIBUSB_LIBRARIES}
     ${CMAKE_THREAD_LIBS_INIT}
 )
-target_link_libraries(rtl_eeprom convenience_static rtlsdr_shared
+target_link_libraries(rtl_biast convenience_static rtlsdr_shared
     ${LIBUSB_LIBRARIES}
     ${CMAKE_THREAD_LIBS_INIT}
 )
@@ -121,7 +121,7 @@ target_link_libraries(rtl_sdr libgetopt_static)
 target_link_libraries(rtl_tcp ws2_32 libgetopt_static)
 target_link_libraries(rtl_test libgetopt_static)
 target_link_libraries(rtl_fm libgetopt_static)
-target_link_libraries(rtl_eeprom libgetopt_static)
+target_link_libraries(rtl_biast libgetopt_static)
 target_link_libraries(rtl_adsb libgetopt_static)
 target_link_libraries(rtl_power libgetopt_static)
 endif()
