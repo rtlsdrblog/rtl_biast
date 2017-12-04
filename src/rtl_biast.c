@@ -56,7 +56,8 @@ void usage(void)
 		"bias tee: rtl_biast -d 0 -b 1\n\n"
 		"Usage:\n"
 		"\t[-d device_index (default: 0)]\n"
-		"\t[-b bias_on (default: 0)]\n");
+		"\t[-b bias_on (default: 0)]\n"
+		"\t[-g (get bias setting)]\n");
 	exit(1);
 }
 
@@ -66,6 +67,8 @@ int main(int argc, char **argv)
 	uint32_t dev_index = 0;
 	uint32_t bias_on = 0;
 	int device_count;
+	int get_bias = 0;
+	int set_bias = 0;
 	char *filename = NULL;
 	FILE *file = NULL;
 	char *manuf_str = NULL;
@@ -79,13 +82,17 @@ int main(int argc, char **argv)
 	int ir_endpoint = 0;
 	char ch;
 
-	while ((opt = getopt(argc, argv, "d:b:h?")) != -1) {
+	while ((opt = getopt(argc, argv, "d:b:gh?")) != -1) {
 		switch (opt) {
 		case 'd':
 			dev_index = atoi(optarg);
 			break;
 		case 'b':
+			set_bias++;
 			bias_on = atoi(optarg);
+			break;
+		case 'g':
+			get_bias++;
 			break;
 		default:
 			usage();
@@ -95,7 +102,11 @@ int main(int argc, char **argv)
 
 	r = rtlsdr_open(&dev, dev_index);
 
-	rtlsdr_set_bias_tee(dev, bias_on);
+	if (set_bias || !get_bias)
+		rtlsdr_set_bias_tee(dev, bias_on);
+
+	if (get_bias)
+		printf("Bias-T = %d\n", rtlsdr_get_bias_tee(dev));
 
 	//rtlsdr_set_direct_sampling(dev, 1);
 

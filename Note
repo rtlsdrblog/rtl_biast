@@ -1,0 +1,39 @@
+NEW OPTION
+==========
+
+This branch implements an option for reading out the setting of the bias-tee.
+
+With option '-g' the setting is displayed:
+
+    rtl_biast -g
+
+
+Together with the '-b' option one can verify the setting immediately:
+
+    rtl_biast -b1 -g
+
+Or in short:
+
+    rtl_biast -gb1
+
+
+BUILD AND INSTALL
+=================
+
+    mkdir build
+    cd build
+    cmake ..
+    make
+    sudo make install
+
+
+REFERENCES
+==========
+
+RTL-SDR Blog V.3. Dongles User Guide:
+
+    https://www.rtl-sdr.com/rtl-sdr-blog-v-3-dongles-user-guide/
+
+Using the RTL2832 GPIO port:
+
+    http://lea.hamradio.si/~s57uuu/mischam/rtlsdr/ports.html
