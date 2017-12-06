@@ -554,6 +554,15 @@ int rtlsdr_demod_write_reg(rtlsdr_dev_t *dev, uint8_t page, uint16_t addr, uint1
 	return (r == len) ? 0 : -1;
 }
 
+void rtlsdr_get_gpio_bit(rtlsdr_dev_t *dev, uint8_t gpio, int *val)
+{
+	uint16_t r;
+
+	gpio = 1 << gpio;
+	r = rtlsdr_read_reg(dev, SYSB, GPI, 1);
+	*val = (r & gpio) ? 1 : 0;
+}
+
 void rtlsdr_set_gpio_bit(rtlsdr_dev_t *dev, uint8_t gpio, int val)
 {
 	uint16_t r;
@@ -562,6 +571,15 @@ void rtlsdr_set_gpio_bit(rtlsdr_dev_t *dev, uint8_t gpio, int val)
 	r = rtlsdr_read_reg(dev, SYSB, GPO, 1);
 	r = val ? (r | gpio) : (r & ~gpio);
 	rtlsdr_write_reg(dev, SYSB, GPO, r, 1);
+}
+
+int rtlsdr_read_gpio_bit(rtlsdr_dev_t *dev, uint8_t gpio)
+{
+	uint16_t r;
+
+	gpio = 1 << gpio;
+	r = rtlsdr_read_reg(dev, SYSB, GPO, 1);
+	return (r & gpio) ? 1 : 0;
 }
 
 void rtlsdr_set_gpio_output(rtlsdr_dev_t *dev, uint8_t gpio)
@@ -573,6 +591,17 @@ void rtlsdr_set_gpio_output(rtlsdr_dev_t *dev, uint8_t gpio)
 	rtlsdr_write_reg(dev, SYSB, GPD, r & ~gpio, 1); // CARL: Changed from rtlsdr_write_reg(dev, SYSB, GPO, r & ~gpio, 1); must be a bug in the old code
 	r = rtlsdr_read_reg(dev, SYSB, GPOE, 1);
 	rtlsdr_write_reg(dev, SYSB, GPOE, r | gpio, 1);
+}
+
+void rtlsdr_set_gpio_input(rtlsdr_dev_t *dev, uint8_t gpio)
+{
+	int r;
+	gpio = 1 << gpio;
+
+	r = rtlsdr_read_reg(dev, SYSB, GPD, 1);
+	rtlsdr_write_reg(dev, SYSB, GPD, r | gpio, 1);
+	r = rtlsdr_read_reg(dev, SYSB, GPOE, 1);
+	rtlsdr_write_reg(dev, SYSB, GPOE, r & ~gpio, 1);
 }
 
 void rtlsdr_set_i2c_repeater(rtlsdr_dev_t *dev, int on)
@@ -1176,6 +1205,14 @@ int rtlsdr_set_bias_tee(rtlsdr_dev_t *dev, int on)
 	rtlsdr_set_gpio_bit(dev, 0, on);
 
 	return 1;
+}
+
+int rtlsdr_get_bias_tee(rtlsdr_dev_t *dev)
+{
+	if (!dev)
+		return -1;
+
+	return rtlsdr_read_gpio_bit(dev, 0);
 }
 
 int rtlsdr_set_direct_sampling(rtlsdr_dev_t *dev, int on)

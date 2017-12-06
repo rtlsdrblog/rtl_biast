@@ -307,6 +307,18 @@ RTLSDR_API int rtlsdr_set_direct_sampling(rtlsdr_dev_t *dev, int on);
 RTLSDR_API int rtlsdr_set_bias_tee(rtlsdr_dev_t *dev, int on);
 
 /*!
+ * Get bias tee setting on device dev.
+ */
+RTLSDR_API int rtlsdr_get_bias_tee(rtlsdr_dev_t *dev);
+
+/*!
+ * GPIO read functions.
+ */
+RTLSDR_API int rtlsdr_read_gpio_bit(rtlsdr_dev_t *dev, uint8_t gpio);
+RTLSDR_API void rtlsdr_get_gpio_bit(rtlsdr_dev_t *dev, uint8_t gpio, int *val);
+RTLSDR_API void rtlsdr_set_gpio_input(rtlsdr_dev_t *dev, uint8_t gpio);
+
+/*!
  * Get state of the direct sampling mode
  *
  * \param dev the device handle given by rtlsdr_open()
