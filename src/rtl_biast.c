@@ -53,8 +53,8 @@ void usage(void)
 	fprintf(stderr,
 		"rtl_biast, a tool for turning the RTL-SDR.com \n"
 		"bias tee or any GPIO ON and OFF. Example to turn on the \n"
-		"bias tee: rtl_biast -d 0 -b 1\n\n"
-                "Any GPIO: rtl_biast -d 0 -g 1 -b 1"
+		"bias tee: rtl_biast -d 0 -b 1\n"
+                "Any GPIO: rtl_biast -d 0 -g 1 -b 1\n\n"
 		"Usage:\n"
 		"\t[-d device_index (default: 0)]\n"
 		"\t[-b bias_on (default: 0)]\n"
