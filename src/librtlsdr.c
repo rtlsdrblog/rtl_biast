@@ -1178,6 +1178,19 @@ int rtlsdr_set_bias_tee(rtlsdr_dev_t *dev, int on)
 	return 1;
 }
 
+int rtlsdr_set_gpio(rtlsdr_dev_t *dev, int gpio_pin, int on)
+{
+	if (!dev)
+		return -1;
+
+	rtlsdr_set_gpio_output(dev, gpio_pin);
+	rtlsdr_set_gpio_bit(dev, gpio_pin, on);
+
+	return 1;
+}
+
+
+
 int rtlsdr_set_direct_sampling(rtlsdr_dev_t *dev, int on)
 {
 	int r = 0;

@@ -52,11 +52,13 @@ void usage(void)
 {
 	fprintf(stderr,
 		"rtl_biast, a tool for turning the RTL-SDR.com \n"
-		"bias tee ON and OFF. Example to turn on the \n"
+		"bias tee or any GPIO ON and OFF. Example to turn on the \n"
 		"bias tee: rtl_biast -d 0 -b 1\n\n"
+                "Any GPIO: rtl_biast -d 0 -g 1 -b 1"
 		"Usage:\n"
 		"\t[-d device_index (default: 0)]\n"
-		"\t[-b bias_on (default: 0)]\n");
+		"\t[-b bias_on (default: 0)]\n"
+                "\t[-g GPIO select (default: 0)]\n");
 	exit(1);
 }
 
@@ -65,6 +67,7 @@ int main(int argc, char **argv)
 	int i, r, opt;
 	uint32_t dev_index = 0;
 	uint32_t bias_on = 0;
+        uint32_t gpio_pin = 0;
 	int device_count;
 	char *filename = NULL;
 	FILE *file = NULL;
@@ -79,7 +82,7 @@ int main(int argc, char **argv)
 	int ir_endpoint = 0;
 	char ch;
 
-	while ((opt = getopt(argc, argv, "d:b:h?")) != -1) {
+	while ((opt = getopt(argc, argv, "d:b:g:h?")) != -1) {
 		switch (opt) {
 		case 'd':
 			dev_index = atoi(optarg);
@@ -87,6 +90,9 @@ int main(int argc, char **argv)
 		case 'b':
 			bias_on = atoi(optarg);
 			break;
+                case 'g':
+                       gpio_pin = atoi(optarg);
+                       break;
 		default:
 			usage();
 			break;
@@ -95,7 +101,8 @@ int main(int argc, char **argv)
 
 	r = rtlsdr_open(&dev, dev_index);
 
-	rtlsdr_set_bias_tee(dev, bias_on);
+        rtlsdr_set_gpio(dev, gpio_pin, bias_on);
+	//rtlsdr_set_bias_tee(dev, bias_on);
 
 	//rtlsdr_set_direct_sampling(dev, 1);
 
