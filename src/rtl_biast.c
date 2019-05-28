@@ -29,6 +29,7 @@
 #endif
 
 #include "rtl-sdr.h"
+#include "convenience/convenience.h"
 
 #define EEPROM_SIZE	256
 #define MAX_STR_SIZE	256
@@ -65,7 +66,8 @@ void usage(void)
 int main(int argc, char **argv)
 {
 	int i, r, opt;
-	uint32_t dev_index = 0;
+	int dev_index = 0;
+	int dev_given = 0;
 	uint32_t bias_on = 0;
         uint32_t gpio_pin = 0;
 	int device_count;
@@ -85,7 +87,8 @@ int main(int argc, char **argv)
 	while ((opt = getopt(argc, argv, "d:b:g:h?")) != -1) {
 		switch (opt) {
 		case 'd':
-			dev_index = atoi(optarg);
+			dev_index = verbose_device_search(optarg);
+			dev_given = 1;
 			break;
 		case 'b':
 			bias_on = atoi(optarg);
@@ -97,6 +100,14 @@ int main(int argc, char **argv)
 			usage();
 			break;
 		}
+	}
+
+	if (!dev_given) {
+		dev_index = verbose_device_search("0");
+	}
+
+	if (dev_index < 0) {
+		exit(1);
 	}
 
 	r = rtlsdr_open(&dev, dev_index);
