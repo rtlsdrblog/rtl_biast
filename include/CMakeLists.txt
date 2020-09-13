@@ -16,12 +16,3 @@
 # along with GNU Radio; see the file COPYING.  If not, write to
 # the Free Software Foundation, Inc., 51 Franklin Street,
 # Boston, MA 02110-1301, USA.
-
-########################################################################
-# Install public header files
-########################################################################
-install(FILES
-    rtl-sdr.h
-    rtl-sdr_export.h
-    DESTINATION include
-)

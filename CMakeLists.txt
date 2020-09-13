@@ -154,16 +154,6 @@ set(exec_prefix \${prefix})
 set(libdir \${exec_prefix}/${LIB_INSTALL_DIR})
 set(includedir \${prefix}/include)
 
-CONFIGURE_FILE(
-    ${CMAKE_CURRENT_SOURCE_DIR}/librtlsdr.pc.in
-    ${CMAKE_CURRENT_BINARY_DIR}/librtlsdr.pc
-@ONLY)
-
-INSTALL(
-    FILES ${CMAKE_CURRENT_BINARY_DIR}/librtlsdr.pc
-    DESTINATION ${LIB_INSTALL_DIR}/pkgconfig
-)
-
 ########################################################################
 # Print Summary
 ########################################################################
