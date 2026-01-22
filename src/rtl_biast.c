@@ -57,7 +57,7 @@ void usage(void)
 		"bias tee: rtl_biast -d 0 -b 1\n"
                 "Any GPIO: rtl_biast -d 0 -g 1 -b 1\n\n"
 		"Usage:\n"
-		"\t[-d device_index (default: 0)]\n"
+		"\t[-d device_index or serial (default: 0)]\n"
 		"\t[-b bias_on (default: 0)]\n"
                 "\t[-g GPIO select (default: 0)]\n");
 	exit(1);
