@@ -20,22 +20,6 @@
 ########################################################################
 # Setup library
 ########################################################################
-add_library(rtlsdr_shared SHARED
-    librtlsdr.c
-    tuner_e4k.c
-    tuner_fc0012.c
-    tuner_fc0013.c
-    tuner_fc2580.c
-    tuner_r82xx.c
-)
-target_link_libraries(rtlsdr_shared
-    ${LIBUSB_LIBRARIES}
-)
-set_target_properties(rtlsdr_shared PROPERTIES DEFINE_SYMBOL "rtlsdr_EXPORTS")
-set_target_properties(rtlsdr_shared PROPERTIES OUTPUT_NAME rtlsdr)
-set_target_properties(rtlsdr_shared PROPERTIES SOVERSION ${MAJOR_VERSION})
-set_target_properties(rtlsdr_shared PROPERTIES VERSION ${LIBVER})
-
 add_library(rtlsdr_static STATIC
     librtlsdr.c
     tuner_e4k.c
@@ -53,7 +37,7 @@ add_library(convenience_static STATIC
     convenience/convenience.c
 )
 target_link_libraries(convenience_static
-    rtlsdr_shared
+    rtlsdr_static
 )
 
 if(NOT WIN32)
@@ -65,9 +49,9 @@ endif()
 # Build utility
 ########################################################################
 add_executable(rtl_biast rtl_biast.c)
-set(INSTALL_TARGETS rtlsdr_shared rtlsdr_static rtl_biast)
+set(INSTALL_TARGETS rtl_biast)
 
-target_link_libraries(rtl_biast convenience_static rtlsdr_shared
+target_link_libraries(rtl_biast convenience_static
     ${LIBUSB_LIBRARIES}
     ${CMAKE_THREAD_LIBS_INIT}
 )
@@ -88,7 +72,5 @@ endif()
 # Install built library files & utilities
 ########################################################################
 install(TARGETS ${INSTALL_TARGETS}
-    LIBRARY DESTINATION ${LIB_INSTALL_DIR} # .so/.dylib file
-    ARCHIVE DESTINATION ${LIB_INSTALL_DIR} # .lib file
-    RUNTIME DESTINATION bin              # .dll file
+    RUNTIME DESTINATION bin              # binary
 )
