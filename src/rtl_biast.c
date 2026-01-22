@@ -102,6 +102,8 @@ int main(int argc, char **argv)
 		}
 	}
 
+	printf("rtl_biast\n");
+
 	if (!dev_given) {
 		dev_index = verbose_device_search("0");
 	}
